@@ -56,4 +56,5 @@ for i in range(len(aList)):
 if (counter!=0):
     print(main_text)
     message = client.messages.create( from_='+18056170294', to='+18052524078', body=main_text)
-        
+else:
+    print("None in next week !")
