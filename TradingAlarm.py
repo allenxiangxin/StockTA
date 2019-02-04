@@ -1,8 +1,8 @@
 '''
     Author: X. Xiang
 
-    The buying alarm sends reminder when at least one stock
-    on my watchlist reaches my pre-defined thresholds
+    Stock buy/sell trading alarm (work in progress)
+
 '''
 
 
@@ -14,30 +14,69 @@ import datetime
 import time
 
 
-# ------------------------------------
-# alpha_ventage only allows 5 calls per minute, and 500 per day
-# solution by delay and multiple api_key (work in progress)
+'''
+    API Mainager:
+    Unless you pay for premium, alpha_ventage only allows 5 calls per minute,
+    and 500 per day. The solution goes around by using multiple api_key.
+    If not avoidable, force 1 min delay
+
+    Always use the first
+    (work in progress)
+'''
 class APIManager:
-    counter = 0
-    api_key = ''
 
-    def __init__(self, i):
-        self.counter = i;
+    last_api_key='';
+    api_keychain=[];
+    ti_list=[];
+    ts_list=[];
+    ti='';
+    ts='';
 
-    def set_api_key(self, aKey):
-        self.api_key=aKey
+    def __init__(self, aFile='private_info/alphavantage_api_key.txt'):
+        try:
+            myf = open(aFile, "r")
+        except IOError:
+            print ("Could not open the api file:", aFile)
+        self.api_file = aFile
+        self.counter = 0;
+        with open (self.api_file, "r") as f: #You won't see my api key :D
+            for line in f:
+                for word in line.split():
+                    self.api_keychain.append(word)
+        n_keys = len(self.api_keychain)
+        self.last_api_key = self.api_keychain[n_keys-1]
 
-    def update():
-        if self.counter>=5:
-            time.sleep(60)
-            self.counter=0
-        else:
-            self.counter+=1
+
+    def init_av_protocol(self):
+        for i in range(len(self.api_keychain)):
+            aKey = self.api_keychain[i]
+            self.ti_list.append(TechIndicators(key=aKey, output_format='pandas')) #Techical Indicator
+            self.ts_list.append(TimeSeries(key=aKey, output_format='pandas', indexing_type='date')) #Time Series
+
+    def permute_list(self):
+        self.api_keychain.append(self.api_keychain.pop(0))
+        self.ti_list.append(self.ti_list.pop(0))
+        self.ts_list.append(self.ts_list.pop(0))
+        self.ts = self.ts_list[0]
+        self.ti = self.ti_list[0]
+
+    def check(self):
+        self.counter+=1
+        if (self.counter>5):
+            if (self.api_keychain[0]==self.last_api_key):
+                print('The api key is used 5 times, delay for 60s ...')
+                time.sleep(60) #TODO: switch to next api key
+                self.permute_list()
+                self.counter=1
+            else:
+                self.permute_list()
+                self.counter=1
 # ------------------------------------
 
 
-#----------------------------
-# buy function
+'''
+    buy alarm
+'''
 def BuyAlarm(aTicker):
 
     # ts_d, ts_meta_d = ts.get_daily_adjusted(symbol=aTicker)
@@ -68,16 +107,20 @@ def BuyAlarm(aTicker):
 #-----------------------------------
 
 
-#--------------------------------
-# sell function
-def SellAlarm(ts, ti, aTicker):
+'''
+    sell alarm
+'''
+def SellAlarm(aTicker):
 
     #default: fastperiod=12, slowperiod=26, signalperiod=9
-    macd_d, macd_meta_d = ti.get_macd(symbol=aTicker, interval='daily',)
-    macd_w, macd_meta_w = ti.get_macd(symbol=aTicker, interval='weekly')
-    rsi_d, rsi_meta_d = ti.get_rsi(symbol=aTicker, interval='daily')
-    rsi_w, rsi_meta_w = ti.get_rsi(symbol=aTicker, interval='weekly')
-    #time.sleep(60) #alpha_ventage basic only allows 5 calls per minute, 500 per day
+    aMan.check(); ti = aMan.ti_list[0]; print(aMan.counter)
+    macd_d, macd_meta_d = ti.get_macd(symbol=aTicker, interval='daily');
+    aMan.check(); ti = aMan.ti_list[0]; print(aMan.counter)
+    macd_w, macd_meta_w = ti.get_macd(symbol=aTicker, interval='weekly');
+    aMan.check(); ti = aMan.ti_list[0]; print(aMan.counter)
+    rsi_d, rsi_meta_d = ti.get_rsi(symbol=aTicker, interval='daily');
+    aMan.check(); ti = aMan.ti_list[0]; print(aMan.counter)
+    rsi_w, rsi_meta_w = ti.get_rsi(symbol=aTicker, interval='weekly');
 
     mask_d = (macd_d.index >= start_date)
     mask_w = (macd_w.index >= start_date)
@@ -106,15 +149,6 @@ def SellAlarm(ts, ti, aTicker):
 # Main
 def main():
 
-    #You won't see my api key :D
-    with open ('private_info/alphavantage_api_key.txt', "r") as f:
-        for line in f:
-            for word in line.split():
-                my_key = word
-    av_api_key = my_key
-    ti = TechIndicators(key=av_api_key, output_format='pandas') #Techical Indicator
-    ts = TimeSeries(key=av_api_key, output_format='pandas', indexing_type='date') #Time Series
-
     # Read my watch list saved in a txt file
     to_buy_list=[]
     with open ('private_info/watchlist_buy.txt', "r") as f:
@@ -128,7 +162,10 @@ def main():
                 to_sell_list.append(word)
 
     #global variables
-    #
+    global aMan
+    aMan = APIManager()
+    aMan.init_av_protocol()
+
     global start_date;
     start_date = datetime.datetime.today() - datetime.timedelta(days=100)
     start_date = start_date.strftime("%Y-%m-%d")
@@ -137,8 +174,7 @@ def main():
     print('start_date:',start_date)
 
     for aTicker in to_sell_list:
-        SellAlarm(ts, ti, aTicker)
-        time.sleep(1)
+        SellAlarm(aTicker)
 
 
 if __name__== "__main__":
