@@ -191,7 +191,7 @@ def main():
             for word in line.split():
                 to_buy_list.append(word)
     to_sell_list=[]
-    with open ('private_info/watchlist_sell_test.txt', "r") as f:
+    with open ('private_info/watchlist_sell.txt', "r") as f:
         for line in f:
             for word in line.split():
                 to_sell_list.append(word)
